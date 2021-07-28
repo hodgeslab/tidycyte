@@ -1,0 +1,179 @@
+---
+title: "Analyzing Incucyte data with tidycyte"
+description: >
+  The tidycyte library enables efficient and simple manipulation of Incucyte raw data matrices
+  using dplyr, purrr, and other features of the tidyverse. The result is a simple, streamlined
+  pipeline that parses Incucyte data matrices and enables normalization and arithmetic
+  operations with only a few key intuitive commands. The tidycyte workflow is designed to
+  prepare data sets for visualization using ggplot2.
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Analyzing Incucyte data with tidycyte}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\usepackage[utf8]{inputenc}
+---
+
+```{r, echo = FALSE, message = FALSE}
+knitr::opts_chunk$set(collapse = T, comment = "#>")
+options(tibble.print_min = 4L, tibble.print_max = 4L)
+set.seed(1014)
+```
+
+## Introduction
+
+The philosophy of tidy data is at the core of tidycyte, and as a result,
+this code makes heavy use of dplyr, purrr, and tidyr.
+Generally, the tidycyte pipeline is designed to efficiently return tidy
+data frames, meaning that each row is an individual
+observation, and each column represents a unique value associated with the
+observation.
+
+As tidycyte is built on dplyr, almost all operations rely on
+data masking (see "Additional information" below). This concept
+permits accessing column names directly as though they are variables,
+rather than referencing the data frame at each mention.
+
+Additionally, the pipeline is amenable to the use of the magrittr pipe
+(`%>%`), which streamlines the overall pipeline to focus on the flow of
+data operations.
+
+This vignette will provide the minimum knowledge you need to effectively
+use tidycyte.
+
+```{r, eval=F, echo=T}
+library(tidycyte)
+```
+
+## Building the metadata table
+
+The metadata table is a key part of the workflow that specifies how the
+samples relate to each other for the purposes of normalization, as well as
+time points that are to be used for normalization. It can be created as a
+data frame, read in using `read.table()`, or, perhaps
+the easiest way to build the metadata table is to use the
+`tribble()` function as shown below:
+
+```{r, eval=F, echo=T}
+metadata <- tribble(
+  ~metric,       ~filename,        ~metric_norm, ~time_norm, ~ymin, ~ymax,
+  "Confluence",  "confluence.txt", NA,           NA,         0,     75,
+  "h2-3",        "green.txt",      "Confluence", 0,          0,     6,
+  "mAzalea",     "red.txt",        "Confluence", 0,          0,     5)
+```
+
+At the minimum, `metadata` needs `metric` and `filename` columns to read
+the Incucyte matrix files. To perform normalization of the data,
+`metric_norm` and `time_norm` will also need to be
+provided as columns. Extra columns do not present a problem and the table
+can contain as many extra columns as desired.
+
+## A typical tidycyte pipeline
+
+The exact pipeline for each tidycyte analysis will depend on the user's
+preferences and the desired analysis. Below is a sample workflow:
+
+```{r, eval = F, echo = T}
+df <- parse_incucyte_matrices(metadata) %>%
+  average_across_images() %>%
+  normalize_by_metric(metadata) %>%
+  normalize_by_time(metadata)
+```
+
+Except for the `parse_incucyte_matrices()` call,
+which must come first, the order of the commands can be modified by the
+user. The above order is highly recommended; however, if desired, time
+normalization could be before metric normalization, or averaging images
+could happen after all of the normalization. Elements of the pipeline can
+also be ommitted if desired.
+
+The key idea behind the use of the magrittr pipe (`%>%`) is to simplify and
+streamline the pipeline steps, allowing the user to focus on data
+processing, rather than coding syntax.
+
+## Metric manipulation operations
+
+Several functions are provided for the manipulation of metrics. These are
+briefly listed below, and users are encouraged to read their documentation
+and sample for themselves how the functions modify the data. Example usage
+for each function is provided within the respective help documents.
+
+*  `replace_na_value_in_metric()` replaces NA values in specified metrics.
+*  `replace_minimum_value_in_metric()` replaces values below a minimum threshold in specified metrics.
+*  `replace_maximum_value_in_metric()` replaces values above a maximum threshold in specified metrics.
+*  `derive_metric()` is one of the most versatile functions that permits mathematical operations on metrics.
+*  `scale_metric()` scales a specified matric to span a new range (e.g. min to max scaling).
+*  `metrics_to_fractions()` converts object counts among specified metrics to fractions.
+*  `summary_stats()` calculates summary statistics, including the standard error across measurements.
+
+## Filtering and specifying plotting order
+
+The main data frame can be filtered using the `filter()`
+command from `dplyr`. If desired, multiple filtering steps can occur in
+one command:
+
+```{r, eval = F, echo = T}
+df <- df %>% filter(treatment %in% treatments_to_plot, elapsed %in% elapsed_to_plot)
+```
+
+Additionally, factor levels can be specified for controlling plotting
+order using `mutate()` from `dplyr`:
+
+```{r, eval = F, echo = T}
+df <- df %>% mutate(treatment = factor(treatment, levels=treatments_to_plot))
+```
+
+## Sample dataset
+
+The library comes with a sample dataset that corresponds to measurement
+of confluency, as well as green and red fluorescent cell cycle markers
+(FUCCI). The sample dataset, `cyclesync`, is automatically available through
+"lazy" data loading, and it can be accessed by name at any time. This dataset
+can be helpful for learning how the pipeline works, and aid in the development
+of new pipelines or functions. It corresponds to the output of
+`parse_incucyte_matrices()`.
+
+To access the dataset, just treat it like you would any other variable. Its
+corresponding metadata table is the example `metadata` table provided in the
+"Building the metadata table" section above.
+
+```{r, eval = F, echo = T}
+df <- cyclesync
+```
+
+## Summary statistics
+
+If desired, rather than plotting individual measurements, summary
+statistics can be calculated for plotting of means with error bars:
+
+```{r, eval = F, echo = T}
+dfs <- df %>% summary_stats(value,elapsed,treatment,cell,metric,.ci = 0.95)
+```
+
+## A complete pipeline
+
+If all variables are known in advance, the entirety of a tidycyte workflow
+can be accomplished in a single pipeline:
+
+```{r, eval = F, echo = T}
+df <- parse_incucyte_matrices(metadata) %>%
+  average_across_images() %>%
+  normalize_by_metric(metadata) %>%
+  normalize_by_time(metadata) %>%
+  filter(treatment %in% treatments_to_plot, elapsed %in% elapsed_to_plot) %>%
+  mutate(treatment = factor(treatment, levels=treatments_to_plot)) %>%
+  summary_stats(value,elapsed,treatment,group,metric,.ci = 0.95)
+```
+
+At this stage, `df` can be used directly in `ggplot()`.
+
+## Additional information
+
+Many syntax issues are covered in the resources below. These can be accessed
+by typing these commands in the console.
+
+*  `help(package="tidycyte")`
+*  `vignette("dplyr")`
+*  `?dplyr::dplyr_data_masking`
+
+------
+The tidycyte library is Copyright 2021 by H. Courtney Hodges.
