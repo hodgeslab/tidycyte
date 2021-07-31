@@ -74,7 +74,7 @@ preferences and the desired analysis. Below is a sample workflow:
 
 ```{r, eval = F, echo = T}
 df <- parse_incucyte_matrices(metadata) %>%
-  average_across_images() %>%
+  sum_across_images() %>%
   normalize_by_metric(metadata) %>%
   normalize_by_time(metadata)
 ```
@@ -97,6 +97,8 @@ briefly listed below, and users are encouraged to read their documentation
 and sample for themselves how the functions modify the data. Example usage
 for each function is provided within the respective help documents.
 
+*  `sum_across_images()` sums metrics when multiple images are taken per well.
+*  `average_across_images()` averages metrics when multiple images are taken per well.
 *  `replace_na_value_in_metric()` replaces NA values in specified metrics.
 *  `replace_minimum_value_in_metric()` replaces values below a minimum threshold in specified metrics.
 *  `replace_maximum_value_in_metric()` replaces values above a maximum threshold in specified metrics.
@@ -156,7 +158,7 @@ can be accomplished in a single pipeline:
 
 ```{r, eval = F, echo = T}
 df <- parse_incucyte_matrices(metadata) %>%
-  average_across_images() %>%
+  sum_across_images() %>%
   normalize_by_metric(metadata) %>%
   normalize_by_time(metadata) %>%
   filter(treatment %in% treatments_to_plot, elapsed %in% elapsed_to_plot) %>%
