@@ -13,6 +13,7 @@ parse_metric <- function(.x) {
   read_delim(.x['filename'], delim="\t", skip=1, col_types = cols()) %>%
     rename(date_time = `Date Time`, elapsed = Elapsed) %>%
     relocate(elapsed) %>% # anchor row order on elapsed, which sorts consistently
+    mutate(across(-date_time, as.double)) %>% # everything but date_time should be a double
     pivot_longer(cols=-c(elapsed,date_time), names_to="id", values_to="value") %>%
     mutate(cell = id_to_cell(id),
            passage = id_to_passage(id),
